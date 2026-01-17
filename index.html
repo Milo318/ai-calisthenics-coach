@@ -77,17 +77,6 @@
             font-size: 1em;
         }
 
-        .skip-btn {
-            background: transparent;
-            color: white;
-            border: 2px solid white;
-            padding: 8px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9em;
-            margin-top: 10px;
-        }
-
         .main-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
@@ -147,6 +136,12 @@
         .ai-message {
             background: white;
             border: 2px solid #e0e0e0;
+        }
+
+        .error-message {
+            background: #fee;
+            border: 2px solid #fcc;
+            color: #c33;
         }
 
         .chat-input-container {
@@ -403,16 +398,6 @@
             font-size: 0.9em;
             text-align: left;
         }
-
-        .warning-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 12px;
-            border-radius: 5px;
-            margin: 10px 0;
-            font-size: 0.9em;
-            color: #856404;
-        }
     </style>
 </head>
 <body>
@@ -423,16 +408,18 @@
         </header>
 
         <div class="api-key-banner" id="apiKeyBanner">
-            <h3>🤗 Hugging Face API Token (Optional)</h3>
-            <p style="margin: 10px 0;">Hol dir einen <strong>kostenlosen</strong> Token von <a href="https://huggingface.co/settings/tokens" target="_blank" style="color: white; text-decoration: underline;">huggingface.co</a> oder nutze die App ohne Token (mit Rate Limit)</p>
+            <h3>🤗 Hugging Face API Token (WICHTIG!)</h3>
+            <p style="margin: 10px 0;">Ohne Token funktioniert die AI nicht! Hol dir einen <strong>kostenlosen</strong> Token von <a href="https://huggingface.co/settings/tokens" target="_blank" style="color: white; text-decoration: underline;">huggingface.co</a></p>
             <div class="api-key-input-container">
                 <input type="password" class="api-key-input" id="apiKeyInput" placeholder="hf_...">
                 <button class="save-key-btn" onclick="saveApiKey()">Speichern</button>
             </div>
-            <button class="skip-btn" onclick="skipApiKey()">Ohne Token nutzen</button>
             <div class="info-box" style="max-width: 600px; margin: 15px auto;">
-                <strong>ℹ️ Mit Token:</strong> Unbegrenzte Requests<br>
-                <strong>⚡ Ohne Token:</strong> ~30 Requests/Stunde (reicht für normales Training)
+                <strong>📝 So holst du den Token:</strong><br>
+                1. Geh auf huggingface.co/settings/tokens<br>
+                2. Click "New token"<br>
+                3. Name: "Fitness App", Type: "Read"<br>
+                4. Copy & paste hier rein
             </div>
         </div>
 
@@ -548,22 +535,19 @@
         let isTimerRunning = false;
         let apiKey = '';
 
-        function skipApiKey() {
-            apiKey = '';
-            initApp();
-        }
-
         function saveApiKey() {
             const input = document.getElementById('apiKeyInput').value.trim();
-            if (input && !input.startsWith('hf_')) {
+            if (!input) {
+                alert('Bitte gib einen API Token ein!');
+                return;
+            }
+            if (!input.startsWith('hf_')) {
                 alert('Der Token sollte mit "hf_" beginnen');
                 return;
             }
             
             apiKey = input;
-            if (apiKey) {
-                localStorage.setItem('huggingface_token', apiKey);
-            }
+            localStorage.setItem('huggingface_token', apiKey);
             initApp();
         }
 
@@ -575,7 +559,7 @@
             loadStats();
             renderExercises();
             renderWorkout();
-            addAIMessage('Hey! 👋 Ich bin dein AI Calisthenics Coach powered by Hugging Face. Frag mich alles!');
+            addAIMessage('Hey! 👋 Ich bin dein AI Calisthenics Coach. Frag mich alles!');
         }
 
         function init() {
@@ -744,6 +728,11 @@
         }
 
         async function sendMessage() {
+            if (!apiKey) {
+                alert('Bitte gib erst deinen Hugging Face Token ein!');
+                return;
+            }
+
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
             
@@ -770,7 +759,14 @@
                 }
             } catch (error) {
                 thinkingMsg.remove();
-                addAIMessage('❌ Fehler: ' + error.message + (error.message.includes('Rate limit') ? ' Versuch es in ein paar Minuten nochmal oder hol dir einen Token!' : ''));
+                const errorMsg = error.message;
+                if (errorMsg.includes('401') || errorMsg.includes('403')) {
+                    addAIMessage('❌ Token ungültig! Bitte check deinen Hugging Face Token.');
+                } else if (errorMsg.includes('503') || errorMsg.includes('loading')) {
+                    addAIMessage('⏳ Model lädt noch... Warte 20 Sekunden und versuch nochmal!');
+                } else {
+                    addAIMessage('❌ Fehler: ' + errorMsg);
+                }
                 console.error(error);
             } finally {
                 sendBtn.disabled = false;
@@ -795,17 +791,12 @@ Kurze, konkrete Antworten.`;
 
             const prompt = `${systemPrompt}\n\nUser: ${userMessage}\nCoach:`;
 
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            if (apiKey) {
-                headers['Authorization'] = `Bearer ${apiKey}`;
-            }
-
             const response = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2', {
                 method: 'POST',
-                headers: headers,
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
                     inputs: prompt,
                     parameters: {
@@ -820,10 +811,7 @@ Kurze, konkrete Antworten.`;
             const data = await response.json();
 
             if (!response.ok) {
-                if (response.status === 429) {
-                    throw new Error('Rate limit erreicht. Warte ein paar Minuten oder hol dir einen Token!');
-                }
-                throw new Error(data.error || 'API Error');
+                throw new Error(data.error || `HTTP ${response.status}`);
             }
 
             if (data.error) {
