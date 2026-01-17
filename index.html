@@ -1168,6 +1168,10 @@
                 setBarcodeStatus('Barcode-Scanner wird nicht unterstützt.', 'error');
                 return;
             }
+            if (!window.isSecureContext) {
+                setBarcodeStatus('Barcode-Scan benötigt HTTPS oder localhost.', 'error');
+                return;
+            }
             if (barcodeScanning) {
                 return;
             }
