@@ -500,6 +500,25 @@
             color: var(--text-secondary);
         }
 
+codex/explain-code-functionality-ymgf04
+        .barcode-panel {
+            margin-top: 16px;
+        }
+
+        .barcode-video {
+            width: 100%;
+            border-radius: var(--radius);
+            border: 2px solid var(--surface);
+            background: #000;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .barcode-video.active {
+            display: block;
+        }
+
+ main
         .macro-card {
             background: var(--surface);
             border: 2px solid var(--surface);
@@ -775,6 +794,40 @@
 
                     <button class="btn" onclick="logMacros()">LOG TODAY</button>
 
+ codex/explain-code-functionality-ymgf04
+                    <div class="card-title" style="margin-top: 24px;">🥗 LEBENSMITTEL-SUCHE</div>
+                    <div class="macro-input">
+                        <div class="macro-field">
+                            <label>Lebensmittel</label>
+                            <input type="text" id="foodInput" placeholder="z. B. Banane, Griechischer Joghurt">
+                        </div>
+                        <div class="macro-field">
+                            <label>Menge (g)</label>
+                            <input type="number" id="foodAmountInput" value="100">
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="addFoodFromLookup()">LEBENSMITTEL HINZUFÜGEN</button>
+                    <div class="food-status mono" id="foodStatus"></div>
+                    <div class="barcode-panel">
+                        <div class="card-title" style="margin-top: 16px;">📷 BARCODE SCAN</div>
+                        <div class="macro-input">
+                            <div class="macro-field">
+                                <label>Barcode</label>
+                                <input type="text" id="barcodeInput" placeholder="Scanne oder tippe den Barcode">
+                            </div>
+                            <div class="macro-field">
+                                <label>Aktion</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-secondary" type="button" onclick="startBarcodeScanner()">SCAN</button>
+                                    <button class="btn btn-secondary" type="button" onclick="stopBarcodeScanner()">STOP</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn" type="button" onclick="lookupFoodByBarcode()">BARCODE SUCHEN</button>
+                        <video id="barcodeVideo" class="barcode-video" autoplay muted playsinline></video>
+                        <div class="food-status mono" id="barcodeStatus"></div>
+                    </div>
+
                     <div class="card-title" style="margin-top: 24px;">🥗 FOOD LOOKUP</div>
                     <div class="macro-input">
                         <div class="macro-field">
@@ -788,6 +841,7 @@
                     </div>
                     <button class="btn btn-secondary" onclick="addFoodFromLookup()">ADD FOOD</button>
                     <div class="food-status mono" id="foodStatus"></div>
+ main
 
                     <div class="macro-summary">
                         <div class="macro-card">
@@ -886,6 +940,20 @@
         let isTimerRunning = false;
         let apiKey = '';
         const foodDatabase = [
+            { name: 'Banane', protein: 1.1, carbs: 22.8, fats: 0.3 },
+            { name: 'Apfel', protein: 0.3, carbs: 13.8, fats: 0.2 },
+            { name: 'Hähnchenbrust', protein: 31, carbs: 0, fats: 3.6 },
+            { name: 'Haferflocken', protein: 13.5, carbs: 60, fats: 7, barcode: '4008400401523' },
+            { name: 'Griechischer Joghurt', protein: 10, carbs: 4, fats: 0.4 },
+            { name: 'Reis (gekocht)', protein: 2.7, carbs: 28, fats: 0.3 },
+            { name: 'Ei', protein: 12.6, carbs: 1.1, fats: 10.6 },
+            { name: 'Lachs', protein: 20, carbs: 0, fats: 13 },
+            { name: 'Brokkoli', protein: 2.8, carbs: 7, fats: 0.4 },
+            { name: 'Mandeln', protein: 21, carbs: 22, fats: 49 }
+        ];
+        let barcodeDetector = null;
+        let barcodeStream = null;
+        let barcodeScanning = false;
             { name: 'banana', protein: 1.1, carbs: 22.8, fats: 0.3 },
             { name: 'apple', protein: 0.3, carbs: 13.8, fats: 0.2 },
             { name: 'chicken breast', protein: 31, carbs: 0, fats: 3.6 },
@@ -1035,6 +1103,12 @@
             status.style.color = type === 'error' ? 'var(--red)' : 'var(--text-secondary)';
         }
 
+        function setBarcodeStatus(message, type = 'info') {
+            const status = document.getElementById('barcodeStatus');
+            status.textContent = message;
+            status.style.color = type === 'error' ? 'var(--red)' : 'var(--text-secondary)';
+        }
+
         function normalizeFoodName(name) {
             return name.trim().toLowerCase();
         }
@@ -1043,11 +1117,14 @@
             const foodNameRaw = document.getElementById('foodInput').value;
             const amount = parseFloat(document.getElementById('foodAmountInput').value);
             if (!foodNameRaw || !amount || amount <= 0) {
+                setFoodStatus('Bitte Lebensmittel und eine gültige Grammzahl eingeben.', 'error');
                 setFoodStatus('Please enter a food and a valid gram amount.', 'error');
                 return;
             }
 
             const foodName = normalizeFoodName(foodNameRaw);
+            const match = foodDatabase.find(item => normalizeFoodName(item.name) === foodName);
+            setFoodStatus('Suche in der Lebensmitteldatenbank...');
             const match = foodDatabase.find(item => item.name === foodName);
             setFoodStatus('Searching database...');
 
@@ -1058,6 +1135,11 @@
                 const fats = Math.round(match.fats * ratio * 10) / 10;
                 addMacrosToTotals(protein, carbs, fats);
                 persistMacros();
+                setFoodStatus(`Hinzugefügt: ${match.name} (${amount}g): P${protein} C${carbs} F${fats}.`);
+                return;
+            }
+
+            setFoodStatus('Nicht gefunden — KI schätzt die Makros...');
                 setFoodStatus(`Added ${foodNameRaw} (${amount}g): P${protein} C${carbs} F${fats}.`);
                 return;
             }
@@ -1067,6 +1149,9 @@
                 const estimate = await estimateFoodMacrosWithAI(foodNameRaw, amount);
                 addMacrosToTotals(estimate.protein, estimate.carbs, estimate.fats);
                 persistMacros();
+                setFoodStatus(`KI-Schätzung für ${foodNameRaw} (${amount}g): P${estimate.protein} C${estimate.carbs} F${estimate.fats}.`);
+            } catch (error) {
+                setFoodStatus(`KI-Schätzung fehlgeschlagen: ${error.message}`, 'error');
                 setFoodStatus(`AI estimate for ${foodNameRaw} (${amount}g): P${estimate.protein} C${estimate.carbs} F${estimate.fats}.`);
             } catch (error) {
                 setFoodStatus(`AI estimate failed: ${error.message}`, 'error');
@@ -1075,6 +1160,12 @@
 
         async function estimateFoodMacrosWithAI(foodName, amount) {
             if (!apiKey) {
+                throw new Error('Kein API-Key gesetzt. Bitte Groq API-Key hinzufügen.');
+            }
+
+            const prompt = `Schätze die Makros für ${amount}g von "${foodName}". ` +
+                `Antworte NUR mit gültigem JSON und den Schlüsseln protein, carbs, fats. ` +
+                `Werte sind Grammzahlen und auf eine Dezimalstelle gerundet.`;
                 throw new Error('No API key set. Add your Groq API key first.');
             }
 
@@ -1091,6 +1182,7 @@
                 body: JSON.stringify({
                     model: 'llama-3.3-70b-versatile',
                     messages: [
+                        { role: 'system', content: 'Du bist Ernährungsexperte und antwortest strikt mit JSON.' },
                         { role: 'system', content: 'You are a nutrition expert who answers with strict JSON only.' },
                         { role: 'user', content: prompt }
                     ],
@@ -1108,6 +1200,7 @@
             const content = data.choices[0].message.content.trim();
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
+                throw new Error('Kein JSON in der KI-Antwort gefunden.');
                 throw new Error('No JSON found in AI response.');
             }
             const parsed = JSON.parse(jsonMatch[0]);
@@ -1116,6 +1209,94 @@
                 carbs: Number(parsed.carbs) || 0,
                 fats: Number(parsed.fats) || 0
             };
+        }
+
+        async function startBarcodeScanner() {
+            if (!('BarcodeDetector' in window)) {
+                setBarcodeStatus('Barcode-Scanner wird nicht unterstützt.', 'error');
+                return;
+            }
+            if (!window.isSecureContext) {
+                setBarcodeStatus('Barcode-Scan benötigt HTTPS oder localhost.', 'error');
+                return;
+            }
+            if (barcodeScanning) {
+                return;
+            }
+
+            barcodeDetector = new BarcodeDetector({
+                formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code']
+            });
+
+            try {
+                barcodeStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                const video = document.getElementById('barcodeVideo');
+                video.srcObject = barcodeStream;
+                video.classList.add('active');
+                barcodeScanning = true;
+                setBarcodeStatus('Scanner aktiv. Barcode vor die Kamera halten...');
+                scanBarcodeFrame();
+            } catch (error) {
+                setBarcodeStatus(`Kamera konnte nicht gestartet werden: ${error.message}`, 'error');
+            }
+        }
+
+        function stopBarcodeScanner() {
+            barcodeScanning = false;
+            const video = document.getElementById('barcodeVideo');
+            video.classList.remove('active');
+            if (barcodeStream) {
+                barcodeStream.getTracks().forEach(track => track.stop());
+                barcodeStream = null;
+            }
+            setBarcodeStatus('Scanner gestoppt.');
+        }
+
+        async function scanBarcodeFrame() {
+            if (!barcodeScanning) {
+                return;
+            }
+            try {
+                const video = document.getElementById('barcodeVideo');
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    document.getElementById('barcodeInput').value = code;
+                    setBarcodeStatus(`Barcode erkannt: ${code}`);
+                    stopBarcodeScanner();
+                    lookupFoodByBarcode();
+                    return;
+                }
+            } catch (error) {
+                setBarcodeStatus(`Scan-Fehler: ${error.message}`, 'error');
+                stopBarcodeScanner();
+                return;
+            }
+            requestAnimationFrame(scanBarcodeFrame);
+        }
+
+        function lookupFoodByBarcode() {
+            const barcode = document.getElementById('barcodeInput').value.trim();
+            const amount = parseFloat(document.getElementById('foodAmountInput').value) || 100;
+            if (!barcode) {
+                setBarcodeStatus('Bitte Barcode eingeben oder scannen.', 'error');
+                return;
+            }
+            const match = foodDatabase.find(item => item.barcode === barcode);
+            if (!match) {
+                setBarcodeStatus('Barcode nicht gefunden. Bitte Lebensmittel manuell eingeben.', 'error');
+                return;
+            }
+            const ratio = amount / 100;
+            const protein = Math.round(match.protein * ratio * 10) / 10;
+            const carbs = Math.round(match.carbs * ratio * 10) / 10;
+            const fats = Math.round(match.fats * ratio * 10) / 10;
+            addMacrosToTotals(protein, carbs, fats);
+            persistMacros();
+            setBarcodeStatus(`Gefunden: ${match.name} (${amount}g): P${protein} C${carbs} F${fats}.`);
+            setFoodStatus(`Hinzugefügt per Barcode: ${match.name}.`);
         }
 
         // Conversation Memory
