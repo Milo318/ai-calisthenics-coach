@@ -691,6 +691,7 @@ codex/explain-code-functionality-ymgf04
                     <button class="btn" onclick="saveApiKey()">START</button>
                     <button class="btn btn-secondary" onclick="clearApiKey()">KEY ZURÜCKSETZEN</button>
                 </div>
+                <div class="food-status mono" id="setupStatus"></div>
 
                 <div class="info-box">
                     <strong>Get your free API key:</strong><br>
@@ -984,11 +985,12 @@ codex/explain-code-functionality-ymgf04
         function saveApiKey() {
             const input = document.getElementById('apiKeyInput').value.trim();
             if (!input || !input.startsWith('gsk_')) {
-                alert('Invalid API key! Should start with gsk_');
+                setSetupStatus('Ungültiger API-Key. Muss mit gsk_ beginnen.', 'error');
                 return;
             }
             apiKey = input;
             localStorage.setItem('groq_api_key', apiKey);
+            setSetupStatus('API-Key gespeichert. App wird geladen...');
             init();
         }
 
@@ -998,11 +1000,19 @@ codex/explain-code-functionality-ymgf04
             document.getElementById('apiKeyInput').value = '';
             document.getElementById('setupScreen').classList.remove('hidden');
             document.getElementById('mainApp').classList.add('hidden');
+            setSetupStatus('API-Key wurde zurückgesetzt.');
             alert('API-Key wurde zurückgesetzt.');
         }
 
         window.saveApiKey = saveApiKey;
         window.clearApiKey = clearApiKey;
+
+        function setSetupStatus(message, type = 'info') {
+            const status = document.getElementById('setupStatus');
+            if (!status) return;
+            status.textContent = message;
+            status.style.color = type === 'error' ? 'var(--red)' : 'var(--text-secondary)';
+        }
 
         function loadAllData() {
             loadProfile();
