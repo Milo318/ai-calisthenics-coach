@@ -1001,6 +1001,9 @@ codex/explain-code-functionality-ymgf04
             alert('API-Key wurde zurückgesetzt.');
         }
 
+        window.saveApiKey = saveApiKey;
+        window.clearApiKey = clearApiKey;
+
         function loadAllData() {
             loadProfile();
             loadStats();
