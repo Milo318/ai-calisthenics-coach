@@ -687,7 +687,10 @@ codex/explain-code-functionality-ymgf04
                     id="apiKeyInput" 
                     placeholder="Groq API Key (gsk_...)"
                 >
-                <button class="btn" onclick="saveApiKey()">START</button>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn" onclick="saveApiKey()">START</button>
+                    <button class="btn btn-secondary" onclick="clearApiKey()">KEY ZURÜCKSETZEN</button>
+                </div>
 
                 <div class="info-box">
                     <strong>Get your free API key:</strong><br>
@@ -987,6 +990,15 @@ codex/explain-code-functionality-ymgf04
             apiKey = input;
             localStorage.setItem('groq_api_key', apiKey);
             init();
+        }
+
+        function clearApiKey() {
+            localStorage.removeItem('groq_api_key');
+            apiKey = '';
+            document.getElementById('apiKeyInput').value = '';
+            document.getElementById('setupScreen').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+            alert('API-Key wurde zurückgesetzt.');
         }
 
         function loadAllData() {
